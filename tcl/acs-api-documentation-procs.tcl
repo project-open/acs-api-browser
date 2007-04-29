@@ -107,7 +107,7 @@ ad_proc -private api_format_author_list { authors } {
     }
     append out "<dt><b>Author[ad_decode [llength $authors] 1 "" "s"]:</b>\n"
     foreach author $authors {
-	append out "<dd>[api_format_author $author]\n"
+	append out "<dd>[api_format_author $author]</dd>\n"
     }
     return $out
 }
@@ -125,7 +125,7 @@ ad_proc -private api_format_changelog_list { changelog } {
 } {
     append out "<dt><b>Changelog:</b>\n"
     foreach change $changelog {
-	append out "<dd>[api_format_changelog_change $change]\n"
+	append out "<dd>[api_format_changelog_change $change]</dd>\n"
     }
     return $out
 }
@@ -140,13 +140,13 @@ ad_proc -private api_format_common_elements { doc_elements_var } {
 	append out [api_format_author_list $doc_elements(author)]
     }
     if { [info exists doc_elements(creation-date)] } {
-	append out "<dt><b>Created:</b>\n<dd>[lindex $doc_elements(creation-date) 0]\n"
+	append out "<dt><b>Created:</b>\n<dd>[lindex $doc_elements(creation-date) 0]</dd>\n"
     }
     if { [info exists doc_elements(change-log)] } {
 	append out [api_format_changelog_list $doc_elements(change-log)]
     }
     if { [info exists doc_elements(cvs-id)] } {
-	append out "<dt><b>CVS ID:</b>\n<dd><code>[ns_quotehtml [lindex $doc_elements(cvs-id) 0]]</code>\n"
+	append out "<dt><b>CVS ID:</b>\n<dd><code>[ns_quotehtml [lindex $doc_elements(cvs-id) 0]]</code></dd>\n"
     }
     if { [info exists doc_elements(see)] } {
 	append out [api_format_see_list $doc_elements(see)]
@@ -263,11 +263,17 @@ ad_proc -private api_format_author { author_string } {
 ad_proc -private api_format_see { see } {
     regsub -all {proc *} $see {} see
     set see [string trim $see]
-    if {[nsv_exists api_proc_doc $see]} { 
+    if {[nsv_exists api_proc_doc $see]} {
         return "<a href=\"proc-view?proc=[ns_urlencode ${see}]\">$see</a>"
-    } else { 
-        return $see
     }
+    if {[string match /doc/*.html $see]
+        || [util_url_valid_p $see]} { 
+        return "<a href=\"${see}]\">$see</a>"
+    }
+    if {[file exists "[get_server_root]${see}"]} {
+        return "<a href=\"content-page-view?source_p=1&path=[ns_urlencode $see]\">$see</a>"
+    }
+    return ${see}
 }
 
 ad_proc -public api_library_documentation {
@@ -315,6 +321,8 @@ ad_proc -public api_library_documentation {
 
 ad_proc -public api_type_documentation {
     type
+} {
+    @return html fragment of the api docs.
 } {
     array set doc_elements [nsv_get doc_type_doc $type]
     append out "<h3>$type</h3>\n"
@@ -415,6 +423,8 @@ ad_proc -public api_proc_documentation {
 	-script:boolean
 	-source:boolean
 	-xql:boolean
+        -label
+        {-first_line_tag <h3>}
 	proc_name
 } {
 
@@ -426,6 +436,8 @@ ad_proc -public api_proc_documentation {
 	@param xql include the source code for the related xql files?
 	@param source include the source code for the script?
 	@param proc_name the name of the procedure for which to generate documentation.
+	@param label the label printed for the proc in the header line
+	@param first_line_tag tag for the markup of the first line
 	@return the formatted documentation string.
 	@error if the procedure is not defined.	   
 } {
@@ -436,22 +448,65 @@ ad_proc -public api_proc_documentation {
 	array set doc_elements [nsv_get api_proc_doc $proc_name]
 	array set flags $doc_elements(flags)
 	array set default_values $doc_elements(default_values)
-	
+
+        if {![info exists label]} {
+	        set label $proc_name
+        }
 	if { $script_p } {
-		append out "<h3>[api_proc_pretty_name $proc_name]</h3>"
+                set pretty_name [api_proc_pretty_name -label $label $proc_name]
 	} else {
-		append out "<h3>[api_proc_pretty_name -link $proc_name]</h3>"
+                set pretty_name [api_proc_pretty_name -link -label $label $proc_name]
 	}
-	
-	lappend command_line $proc_name
+        if {[regexp {<([^ >]+)} $first_line_tag match tag]} {
+	        set end_tag "</$tag>"
+	} else {
+	        set first_line_tag "<h3>"
+	        set end_tag "</h3>"
+	}
+        append out $first_line_tag$pretty_name$end_tag
+        
+        if {[regexp {^(.*) (inst)?proc (.*)$} $proc_name match cl prefix method]} {
+	  set xotcl 1
+	  set scope ""
+	  if {[regexp {^(.+) (.+)$} $cl match scope cl]} {
+	    set cl "$scope do $cl"
+	  }
+	  if {[string equal "" $prefix]} {
+	    set pretty_proc_name "[::xotcl::api object_link $scope $cl] $method"
+	  } else {
+	    set pretty_proc_name \
+		"<i>&lt;instance of\
+		[::xotcl::api object_link $scope $cl]&gt;</i> $method"
+	  }
+	} else {
+	  set xotcl 0
+          set pretty_proc_name $proc_name
+	}
+
+	lappend command_line $pretty_proc_name
 	foreach switch $doc_elements(switches) {
-		if { [lsearch $flags($switch) "boolean"] >= 0 } {
-			lappend command_line "\[ -$switch \]"
+	  if {$xotcl} {
+	    if { [lsearch $flags($switch) "boolean"] >= 0} {
+	      set value "<i>on|off</i> "
+	    } elseif { [lsearch $flags($switch) "switch"] >= 0} {
+	      set value ""
+	    } else {
+	      set value "</i>$switch</i> "
+	    }
+	    if { [lsearch $flags($switch) "required"] >= 0} {
+	      lappend command_line "-$switch $value"
+	    } else {
+	      lappend command_line "\[ -$switch $value\]"
+	    }
+	  } else {
+	    if { [lsearch $flags($switch) "boolean"] >= 0} {
+	                lappend command_line "\[ -$switch \]"
 		} elseif { [lsearch $flags($switch) "required"] >= 0 } {
 			lappend command_line "-$switch <i>$switch</i>"
 		} else {
 			lappend command_line "\[ -$switch <i>$switch</i> \]"
 		}
+	  }
 	}
 	
 	set counter 0
@@ -494,9 +549,9 @@ ad_proc -public api_proc_documentation {
 	}
 	
 	if { [llength $doc_elements(switches)] > 0 } {
-		append out "<dt><b>Switches:</b></dt><dd>\n"
+		append out "<dt><b>Switches:</b></dt><dd><dl>\n"
 		foreach switch $doc_elements(switches) {
-			append out "<b>-$switch</b>"
+			append out "<dt><b>-$switch</b>"
 			if { [lsearch $flags($switch) "boolean"] >= 0 } {
 				append out " (boolean)"
 			} 
@@ -511,13 +566,12 @@ ad_proc -public api_proc_documentation {
 			} else {
 				append out " (optional)"
 			}
-			
+			append out "</dt>"
 			if { [info exists params($switch)] } {
-				append out " - $params($switch)"
+				append out "<dd>$params($switch)</dd>"
 			}
-			append out "<br>\n"
 		}
-		append out "</dd>\n"
+		append out "</dl></dd>\n"
 	}
 	
 	if { [llength $doc_elements(positionals)] > 0 } {
@@ -573,7 +627,7 @@ ad_proc -public api_proc_documentation {
 </dd><p>\n"
 		} else {
 		append out "<dt><b>Source code:</b></dt><dd>
-<pre>[ns_quotehtml [info body $proc_name]]<pre>
+<pre>[ns_quotehtml [api_get_body $proc_name]]<pre>
 </dd><p>\n"
 	        }
         }
@@ -581,27 +635,33 @@ ad_proc -public api_proc_documentation {
 	set xql_base_name [get_server_root]/
 	append xql_base_name [file rootname $doc_elements(script)]
 	if { $xql_p } {
+                set there {}
+                set missing {}
 		if { [file exists ${xql_base_name}.xql] } {
-			append out "<dt><b>Generic XQL file:</b></dt>
+			append there "<dt><b>Generic XQL file:</b></dt>
 <blockquote>[api_quote_file ${xql_base_name}.xql]</blockquote>
 <p>\n"
 		} else {
-			append out "<dt><b>Generic XQL file:</b> ${xql_base_name}.xql does not exist</dt><p>\n"
+                      lappend missing Generic
 		}
 		if { [file exists ${xql_base_name}-postgresql.xql] } {
-			append out "<dt><b>Postgresql XQL file:</b></dt>
+			append there "<dt><b>Postgresql XQL file:</b></dt>
 <blockquote>[api_quote_file ${xql_base_name}-postgresql.xql]</blockquote>
 <p>\n"
 		} else {
-			append out "<dt><b>Postgresql XQL file:</b> ${xql_base_name}-postgresql.xql does not exist</dt><p>\n"
+                      lappend missing PostgreSQL
 		}
 		if { [file exists ${xql_base_name}-oracle.xql] } {
-			append out "<dt><b>Oracle XQL file:</b></dt>
+			append there "<dt><b>Oracle XQL file:</b></dt>
 <blockquote>[api_quote_file ${xql_base_name}-oracle.xql]</blockquote>
 <p>\n"
 		} else {
-			append out "<dt><b>Oracle XQL file:</b> ${xql_base_name}-oracle.xql does not exist</dt><p>\n"
+                    lappend missing Oracle
 		}
+                if {[llength $missing] > 0} { 
+		    append out "<dt><b>XQL Not present:</b></dt><dd>[join $missing ", "]</dd>"
+                }
+                append out $there  
 	}
 
 	# No "see also" yet.
@@ -613,14 +673,20 @@ ad_proc -public api_proc_documentation {
 
 ad_proc api_proc_pretty_name { 
     -link:boolean
+    -label
     proc 
 } {
     Return a pretty version of a proc name
+   @param label the label printed for the proc in the header line
+   @param link provide a link to the documentation pages
 } {
+    if {![info exists label]} {
+        set label $proc
+    }
     if { $link_p } {
-	append out "<a href=\"[api_proc_url $proc]\">$proc</a>"
+	append out "<a href=\"[api_proc_url $proc]\">$label</a>"
     } else {	
-	append out "$proc"
+	append out "$label"
     }
     array set doc_elements [nsv_get api_proc_doc $proc]
     if { $doc_elements(public_p) } {
@@ -735,6 +801,38 @@ ad_proc -public api_describe_function {
     return $matches
 }
 
+ad_proc -private api_is_xotcl_object {scope proc_name} {
+  Checks, whether the specified argument is an xotcl object.
+  Does not cause problems when xocl is not loaded.
+  @return boolean value
+} {
+  set result 0
+  if {[string match ::* $proc_name]} { ;# only check for absolute names
+    catch {set result [::xotcl::api inscope $scope ::xotcl::Object isobject $proc_name]}
+  }
+  return $result
+}
+
+ad_proc -public api_get_body {proc_name} {
+  This function returns the body of a tcl proc or an xotcl method.
+  @param proc_name the name spec of the proc
+  @return body of the specified prox
+} {
+
+  if {[regexp {^(.*) (inst)?proc (.*)$} $proc_name match obj prefix method]} {
+    if {[regexp {^(.*) (.*)$} $obj match thread obj]} {
+      # the definition is located in a disconnected thread
+      return [$thread do ::Serializer methodSerialize $obj $method $prefix]
+    } else {
+      # the definition is locally in the connection thread
+      return [::Serializer methodSerialize $obj $method $prefix]
+    }
+  } else {
+    return [info body $proc_name]
+  }
+}
+
+
 ad_proc -private api_tcl_to_html {proc_name} {
 
     Given a proc name, formats it as HTML, including highlighting syntax in
@@ -776,7 +874,7 @@ ad_proc -private api_tcl_to_html {proc_name} {
 
     # Returns length of subexpression, from open to close quote inclusive
     proc length_string {data} {
-        regexp -indices {[^\\]"} $data match
+        regexp -indices {[^\\]\"} $data match
         return [expr [lindex $match 1]+1]
     }
 
@@ -846,6 +944,8 @@ ad_proc -private api_tcl_to_html {proc_name} {
         /str      {</FONT>}
         var       {<FONT color=#660066>}
         /var      {</FONT>}
+        object	  {<FONT color=#000066><b>}
+        /object	  {</b></FONT>}
     }
 
     # Keywords will be colored as other procs, but not hyperlinked
@@ -865,6 +965,17 @@ ad_proc -private api_tcl_to_html {proc_name} {
         {gets puts socket tell format scan} \
         ]
 
+    if {[string compare "" [info command ::xotcl::api]]} {
+      set XOTCL_KEYWORDS [list self my next]
+      # only command names are highlighted, otherwise we could add xotcl method
+      # names by [lsort -unique [concat [list self my next] ..
+      # [::xotcl::Object info methods] [::xotcl::Class info methods] ]]
+      set scope [::xotcl::api scope_from_proc_index $proc_name]
+    } else {
+      set XOTCL_KEYWORDS {}
+      set scope ""
+    }
+
     # Returns a list of the commands from all namespaces.
     proc list_all_procs {{parentns ::}} {
         set result [info commands ${parentns}::*]
@@ -879,7 +990,8 @@ ad_proc -private api_tcl_to_html {proc_name} {
     set proc_namespace ""
     regexp {^(::)?(.*)::[^:]+$} $proc_name match colons proc_namespace
 
-    set data "\n[info body $proc_name]"
+    set data \n[api_get_body $proc_name]
+
     regsub -all {&} $data {\&amp;} data
     regsub -all {<} $data {\&lt;} data
     regsub -all {>} $data {\&gt;} data
@@ -983,20 +1095,35 @@ ad_proc -private api_tcl_to_html {proc_name} {
                 set procl [length_proc [string range $data $i end]]
                 set proc_name [string range $data $i [expr $i + $procl]]
 
-                if {[lsearch -exact $KEYWORDS $proc_name] != -1 ||
-                    ([regexp {^::(.*)} $proc_name match had_colons] && [lsearch -exact $KEYWORDS $had_colons] != -1)} {
-                    append html "$HTML(procs)${proc_name}$HTML(/procs)"
+	        if {[lsearch -exact $KEYWORDS $proc_name] != -1 ||
+                    ([regexp {^::(.*)} $proc_name match had_colons] && 
+		     [lsearch -exact $KEYWORDS $had_colons] != -1)} {
+		  append html "$HTML(procs)${proc_name}$HTML(/procs)"
+                } elseif {[lsearch -exact $XOTCL_KEYWORDS $proc_name] != -1 } {
+		  append html "$HTML(procs)${proc_name}$HTML(/procs)"
+                } elseif {[api_is_xotcl_object $scope $proc_name]} {
+		  set url [::xotcl::api object_url \
+			       -show_source 1 -show_methods 2 \
+			       $scope $proc_name]
+		  append html "<A style='text-decoration:none' href=\
+			'$url'>$HTML(object)${proc_name}$HTML(/object)</A>"
                 } elseif {[string match "ns*" $proc_name]} {
-                    append html "<A style=\"text-decoration:none\" href=\"tcl-proc-view?tcl_proc=$proc_name\">$HTML(procs)${proc_name}$HTML(/procs)</A>"
+		  set url "tcl-proc-view?tcl_proc=$proc_name"
+		  append html "<A style='text-decoration:none' href=\
+ 			'$url'>$HTML(procs)${proc_name}$HTML(/procs)</A>"
                 } elseif {[string match "*__arg_parser" $proc_name]} {
-                   append html "$HTML(procs)${proc_name}$HTML(/procs)"
+		  append html "$HTML(procs)${proc_name}$HTML(/procs)"
                 } elseif {[lsearch -exact $COMMANDS ::${proc_namespace}::${proc_name}] != -1}  {
-                    append html "<A style=\"text-decoration:none\" href=\"[api_proc_url ${proc_namespace}::${proc_name}]\">$HTML(procs)${proc_name}$HTML(/procs)</A>"
+		  set url [api_proc_url ${proc_namespace}::${proc_name}]
+		  append html "<A style='text-decoration:none' href=\
+			'$url'>$HTML(procs)${proc_name}$HTML(/procs)</A>"
                 } elseif {[lsearch -exact $COMMANDS ::$proc_name] != -1}  {
-                    append html "<A style=\"text-decoration:none\" href=\"[api_proc_url $proc_name]\">$HTML(procs)${proc_name}$HTML(/procs)</A>"
+		  set url [api_proc_url $proc_name]
+		  append html "<A style='text-decoration:none' href=\
+			'$url'>$HTML(procs)${proc_name}$HTML(/procs)</A>"
                 } else {
-                    append html ${proc_name}
-                    set proc_ok 1
+		  append html ${proc_name}
+		  set proc_ok 1
                 }
                 incr i $procl
 
