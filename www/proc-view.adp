@@ -1,13 +1,13 @@
 <master>
-<property name=title>@title;noquote@</property>
-<property name="context">@context;noquote@</property>
+<property name="doc(title)">@title;literal@</property>
+<property name="context">@context;literal@</property>
 
 <if @error_msg@ ne "">
 @error_msg;noquote@
 </if>
 <else>
 <table width="100%">
-  <tr><td bgcolor="#eeeeee">@documentation;noquote@</td></tr>
+  <tr><td style="background: #eeeeee">@documentation;noquote@</td></tr>
 </table>
 
 <if @source_p@ eq 0>
@@ -23,7 +23,7 @@ the default</a> ]
 </if>
 </else>
 
-<form action=proc-view method=get>
-Show another procedure: <input type="text" name="proc"> <input type="submit" value="Go">
+<form action="proc-view" method="get">
+<div>Show another procedure: <input type="text" name="proc"> <input type="submit" value="Go"></div>
 </form>
 

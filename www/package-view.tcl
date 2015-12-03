@@ -1,74 +1,44 @@
+ad_page_contract {
+    Shows APIs for a particular package.
 
-
-if {![info exists package_key]} {
-    ad_page_contract {
-	Shows APIs for a particular package.
-	
-	@param version_id the ID of the version whose API to view.
-	@param public_p view only public APIs?
-	@param kind view which type of APIs? One of <code>procs_files</code>,
+    @param version_id the ID of the version whose API to view.
+    @param public_p view only public APIs?
+    @param kind view which type of APIs? One of <code>procs_files</code>,
         <code>procs</code> or <code>content</code>.
-	@author Jon Salz (jsalz@mit.edu)
-	@creation-date 3 Jul 2000
-	@cvs-id $Id$
-    } {
-	{ version_id "" }
-	{ public_p "" }
-	{ kind "all" }
-	{ package_key "" }
-    } -properties {
-	title:onevalue
-	context:onevalue
-	dimensional_slider:onevalue
-	kind:onevalue
-	version_id:onevalue
-	package_key:onevalue
-	procs_files:multirow
-	procedures:multirow
-	sql_files:multirow
-	content_pages:multirow
-    }
-} else {
-    set kind "all"
-    set public_p ""
+    @author Jon Salz (jsalz@mit.edu)
+    @creation-date 3 Jul 2000
+    @cvs-id $Id$
+} {
+    version_id:naturalnum,notnull
+    { public_p:boolean "" }
+    { kind "procs_files" }
+    { about_package_key ""}
+} -properties {
+    title:onevalue
+    context:onevalue
+    dimensional_slider:onevalue
+    kind:onevalue
+    version_id:onevalue
+    package_key:onevalue
+    procs_files:multirow
+    procedures:multirow
+    sql_files:multirow
+    content_pages:multirow
 }
 
-
-set error_message ""
-set dimensional_slider ""
-if {![info exists show_master_p]} { set show_master_p 1 }
-
-# if {[info exists package_key]} {
-#     set version_id [db_string package_version "select min(version_id) from apm_package_versions where package_key = :package_key" -default ""]
-# }
-
-if {![info exists version_id] || "" == $version_id} {
-    if {[info exists package_key] && "" != $package_key} {
-        set version_id [db_string package_version "select min(version_id) from apm_package_versions where package_key = :package_key" -default ""]
-    }
-}
-
-# ad_return_complaint 1 $version_id
-
-if {"" == $version_id} { set error_message "Package '$package_key' is not installed on this server, so there is no documentation available." }
-if {"all" == $kind} { set kind "procs_files procs sql_files content" }
-set url "/api-doc"
-
-
-set public_p [api_set_public $version_id $public_p]
-
-set pretty_name ""
-set version_name ""
-set relative_path ""
-
-if {![info exists package_key] || "" == $package_key} {
-    set package_key "intranet-hr"
-}
+set public_p [::apidoc::set_public $version_id $public_p]
 
 db_0or1row pretty_name_from_package_id {
     select pretty_name, package_key, version_name
       from apm_package_version_info
      where version_id = :version_id
+}
+if {![info exists pretty_name]} {
+    set context ""
+    set kind "none"
+    set title "No such Package (probably outdated link)"
+    set dimensional_slider $title
+    return
 }
 
 set dimensional_list {
@@ -93,36 +63,30 @@ set context [list $title]
 set dimensional_slider "[ad_dimensional \
         $dimensional_list \
         "" \
-        [ad_tcl_vars_to_ns_set version_id kind public_p]]"
+        [ad_tcl_vars_to_ns_set version_id kind public_p about_package_key]]"
 
-set procs_p 0
-set procs_files_p 0
-set sql_files_p 0
-set content_p 0
-
-foreach k $kind {
-switch $k {
+switch $kind {
     procs_files {
-	set procs_files_p 1
         array set procs [list]
 
-        multirow create procs_files path full_path first_sentence
+        multirow create procs_files path full_path first_sentence view
 
-        foreach path [apm_get_package_files -package_key $package_key -file_types tcl_procs] {
+        foreach path [apm_get_package_files -package_key $package_key -file_types {tcl_procs include_page}] {
             set full_path "packages/$package_key/$path"
             
             if { [nsv_exists api_library_doc $full_path] } {
                 array set doc_elements [nsv_get api_library_doc $full_path]
-                set first_sentence "[api_first_sentence [lindex $doc_elements(main) 0]]"
+                set first_sentence [::apidoc::first_sentence [lindex $doc_elements(main) 0]]
+                set view procs-file-view
             } else {
                 set first_sentence ""
+                set view content-page-view
             }
 
-            multirow append procs_files $path $full_path $first_sentence
+            multirow append procs_files $path $full_path $first_sentence $view
         }
     }
     procs {
-	set procs_p 1
         array set procs [list]
 
         foreach path [apm_get_package_files -package_key $package_key -file_types tcl_procs] {
@@ -142,15 +106,14 @@ switch $k {
                     continue
                 }
             }
-            multirow append procedures $proc [api_first_sentence [lindex $doc_elements(main) 0]]
+            multirow append procedures $proc [::apidoc::first_sentence [lindex $doc_elements(main) 0]]
         }
     }
     sql_files {
-	set sql_files_p 1
         multirow create sql_files path relative_path
 
         set file_types [list data_model data_model_create data_model_drop data_model_upgrade]
-        foreach path [apm_get_package_files -package_key $package_key -file_types $file_types] {
+        foreach path [apm_get_package_files -include_data_model_files -package_key $package_key -file_types $file_types] {
            # Set relative path to everything after sql/ (just using
            # file tail breaks when you've got subdirs of sql)
            regexp {^sql/(.*)} $path match relative_path
@@ -159,7 +122,6 @@ switch $k {
         }
     }
     content {
-	set content_p 1
         multirow create content_pages indentation full_path content_type name type first_sentence
         set last_components [list]
         foreach path [apm_get_package_files -package_key $package_key -file_types content_page] {
@@ -175,8 +137,7 @@ switch $k {
                 for { set n_same_components 0 } \
                         { $n_same_components < [llength $last_components] } \
                         { incr n_same_components } {
-                    if { ![string equal [lindex $last_components $n_same_components] \
-                            [lindex $components $n_same_components]] } {
+                    if { [lindex $last_components $n_same_components] ne [lindex $components $n_same_components] } {
                         break
                     }
                 }
@@ -195,7 +156,7 @@ switch $k {
                             set type $doc_elements(type)
                         }
                         if { [info exists doc_elements(main)] } {
-                            set first_sentence [api_first_sentence [lindex $doc_elements(main) 0]]
+                            set first_sentence [::apidoc::first_sentence [lindex $doc_elements(main) 0]]
                         }
                     } else {
                         set content_type directory
@@ -209,5 +170,4 @@ switch $k {
             }
         }
     }
-}
 }

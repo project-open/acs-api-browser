@@ -14,12 +14,12 @@ ad_page_contract {
     @cvs-id $Id$
 } {
     {name_weight:optional 0}
-    {doc_weight:optional 0}
-    {param_weight:optional 0}
-    {source_weight:optional 0}
+    {doc_weight:integer,optional 0}
+    {param_weight:integer,optional 0}
+    {source_weight:integer,optional 0}
     {search_type:optional 0}
-    {show_deprecated_p 0}
-    {show_private_p 0}
+    {show_deprecated_p:boolean 0}
+    {show_private_p:boolean 0}
     query_string
 } -properties {
     title:onevalue
@@ -46,7 +46,7 @@ if {$quick_view && [nsv_exists api_proc_doc $query_string]} {
 
 ###########################
 # No weighting use default:
-if { ($name_weight == 0) && ($doc_weight == 0) && ($param_weight == 0) && ($source_weight ==0) } {
+if { ($name_weight == 0) && ($doc_weight == 0) && ($param_weight == 0) && ($source_weight == 0) } {
     set name_weight 1
 }
 
@@ -72,17 +72,17 @@ foreach proc [nsv_array names api_proc_doc] {
     ###############
     ## Name Search:
     ###############
-    if {$name_weight} {
+    if {$name_weight != 0 && [string is integer -strict $name_weight]} {
         # JCD: this was a little perverse since exact matches were
         # actually worth less than matches in the name (if there were
         # 2 or more, which happens with namespaces) so I doubled the
         # value of an exact match.
 
         ##Exact match:
-        if {[string tolower $query_string] == [string tolower $proc]} {
+        if {[string tolower $query_string] eq [string tolower $proc]} {
             incr score [expr {$name_weight * 2}]
         } elseif { ! $exact_match_p } {
-            incr score [expr {$name_weight * [ad_keywords_score $query_string $proc]}] 
+            incr score [expr {$name_weight * [::apidoc::ad_keywords_score $query_string $proc]}] 
         }
     }
    
@@ -90,16 +90,16 @@ foreach proc [nsv_array names api_proc_doc] {
     ## Param Search:
     ################
     if {$param_weight} {
-        incr score [expr {$param_weight * [ad_keywords_score $query_string "$doc_elements(positionals) $doc_elements(switches)"]}]
+        incr score [expr {$param_weight * [::apidoc::ad_keywords_score $query_string "$doc_elements(positionals) $doc_elements(switches)"]}]
     }
     
 
     ##############
     ## Doc Search:
     ##############
-    if {$doc_weight} {
+    if {$doc_weight > 0} {
         
-        set doc_string "[lindex $doc_elements(main) 0]"
+        set doc_string [lindex $doc_elements(main) 0]
         if {[info exists doc_elements(param)]} {
             foreach parameter $doc_elements(param) {
                 append doc_string " $parameter"
@@ -108,16 +108,16 @@ foreach proc [nsv_array names api_proc_doc] {
         if {[info exists doc_elements(return)]} {
             append doc_string " $doc_elements(return)"
         }
-        incr score [expr {$doc_weight * [ad_keywords_score $query_string $doc_string]}]
+        incr score [expr {$doc_weight * [::apidoc::ad_keywords_score $query_string $doc_string]}]
         
     }
     
     #################
     ## Source Search:
     #################
-    if {$source_weight} {
+    if {$source_weight != 0} {
         if {![catch {set source [info body $proc]}]} {
-            incr score [expr {$source_weight * [ad_keywords_score $query_string $source]}] 
+            incr score [expr {$source_weight * [::apidoc::ad_keywords_score $query_string $source]}] 
         }    
     }
 
@@ -141,10 +141,10 @@ foreach proc [nsv_array names api_proc_doc] {
     }
 }
 
-set matches [lsort -command ad_sort_by_score_proc $matches]
+set matches [lsort -command ::apidoc::ad_sort_by_score_proc $matches]
 
 if {$quick_view && $matches ne "" || [llength $matches] == 1 } {
-    ad_returnredirect [api_proc_url [lindex [lindex $matches 0] 0]]
+    ad_returnredirect [api_proc_url [lindex $matches 0 0]]
     ad_script_abort
 }
 
@@ -155,10 +155,8 @@ multirow create results score proc args url
 
 foreach output $matches {
     incr counter
-    set proc  [lindex $output 0]    
-    set score [lindex $output 1]
-    set args  [lindex $output 2]
-    set url   [api_proc_url $proc]
+    lassign $output proc score args
+    set url [api_proc_url $proc]
     multirow append results $score $proc $args $url
 }
 
@@ -166,10 +164,8 @@ multirow create deprecated_results score proc args url
 
 foreach output $deprecated_matches {
     incr counter
-    set proc  [lindex $output 0]    
-    set score [lindex $output 1]
-    set args  [lindex $output 2]
-    set url   [api_proc_url $proc]
+    lassign $output proc score args
+    set url [api_proc_url $proc]
     multirow append deprecated_results $score $proc $args $url
 }
 
@@ -182,10 +178,8 @@ multirow create private_results score proc args url
 
 foreach output $private_matches {
     incr counter
-    set proc  [lindex $output 0]    
-    set score [lindex $output 1]
-    set args  [lindex $output 2]
-    set url   [api_proc_url $proc]
+    lassign $output proc score args
+    set url [api_proc_url $proc]
     multirow append private_results $score $proc $args $url
 }
 

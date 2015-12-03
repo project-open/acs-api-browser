@@ -1,26 +1,28 @@
 <master>
-<property name="title">@title;noquote@</property>
-<property name="context">@context;noquote@</property>
+<property name="doc(title)">@title;literal@</property>
+<property name="context">@context;literal@</property>
 
 @dimensional_slider;noquote@
 
-<ul>
 <if @sort_by@ eq "file">
-  <% set last_file "" %>
+  <% set last_file ""; set count 0 %>
   <multiple name="proc_list">
   <% if { $proc_list(file) != $last_file } { %>
-    </ul><b>@proc_list.file@</b> <ul>
+    <% if {[incr count] >1} { %> </ul> <% } %>
+    <b>@proc_list.file@</b> <ul>
     <% set last_file @proc_list.file@ %>
   <% } %>
   <li><a href="@proc_list.url@">@proc_list.proc@</a>
   </multiple>
+  </ul>
 </if>
 <else>
+  <ul>
   <multiple name="proc_list">
   <li><a href="@proc_list.url@">@proc_list.proc@</a> (defined in @proc_list.file@)
   </multiple>
+  </ul>
 </else>
-</ul>
 
 <if @proc_list:rowcount@ eq 0>
 Sorry, no procedures found
