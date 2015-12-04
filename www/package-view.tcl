@@ -11,8 +11,8 @@ ad_page_contract {
 } {
     version_id:naturalnum,notnull
     { public_p:boolean "" }
-    { kind "procs_files" }
-    { about_package_key ""}
+    { kind:word "procs_files" }
+    { about_package_key:token ""}
 } -properties {
     title:onevalue
     context:onevalue
@@ -79,7 +79,12 @@ switch $kind {
                 set first_sentence [::apidoc::first_sentence [lindex $doc_elements(main) 0]]
                 set view procs-file-view
             } else {
-                set first_sentence ""
+                array set doc_elements [api_read_script_documentation $full_path]
+                if { [info exists doc_elements(main)] } {
+                    set first_sentence [::apidoc::first_sentence [lindex $doc_elements(main) 0]]
+                } else {
+                    set first_sentence ""
+                }
                 set view content-page-view
             }
 
@@ -171,3 +176,9 @@ switch $kind {
         }
     }
 }
+
+# Local variables:
+#    mode: tcl
+#    tcl-indent-level: 4
+#    indent-tabs-mode: nil
+# End:

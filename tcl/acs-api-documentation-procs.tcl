@@ -105,7 +105,7 @@ ad_proc -public api_read_script_documentation {
         regsub -all {\#.*$} $line "" line
         set line [string trim $line]
         if { $line ne "" } {
-            set has_contract_p [regexp {(^ad_page_contract\s)|( initialize )} $line match]
+            set has_contract_p [regexp {(^ad_(page|include)_contract\s)|(Package initialize )} $line]
             break
         }
     }
@@ -128,7 +128,7 @@ ad_proc -public api_read_script_documentation {
         if {[regexp {^ad_page_contract documentation} $::errorInfo] } {
             array set doc_elements $error
         }
-        if { [info exists doc_elements] } {
+        if { [array exists doc_elements] } {
             return [array get doc_elements]
         }
         return [list]
@@ -764,26 +764,42 @@ namespace eval ::apidoc {
     }
 
     ad_proc -public format_see { see } {
+        Takes the value in the argument "see" and possibly formats it
+        into a link that will give the user more info about that
+        resource
+
+        @param see a string expected to comtain the resource to format
+        @return the html string representing the resource
+    } {
         regsub -all {proc *} $see {} see
         set see [string trim $see]
         if {[nsv_exists api_proc_doc $see]} {
-            return "<a href=\"[ns_quotehtml proc-view?proc=[ns_urlencode ${see}]]\">$see</a>"
+            set href [export_vars -base proc-view {{proc $see}}]
+            return [subst {<a href="[ns_quotehtml $href]">$see</a>}]
         }
-        if {[string match "/doc/*.html" $see]
+        if {[string match "/doc/*" $see]
             || [util_url_valid_p $see]} { 
-            return "<a href=\"[ns_quotehtml $see]\">$see</a>"
+            return [subst {<a href="[ns_quotehtml $see]">$see</a>}]
         }
         if {[file exists "$::acs::rootdir${see}"]} {
-            return "<a href=\"[ns_quotehtml content-page-view?source_p=1&path=[ns_urlencode $see]]\">$see</a>"
+            set href [export_vars -base content-page-view {{source_p 1} {path $see}}]
+            return [subst {<a href="[ns_quotehtml $href]">$see</a>}]
         }
         return ${see}
     }
 
     ad_proc -public format_author { author_string } {
+
+        Extracts information about the author and formats it into an
+        HTML string.
+
+        @param author_string author information to format
+        @return the formatted result
+    } {
         if { [regexp {^[^ \n\r\t]+$} $author_string] 
              && [string first "@" $author_string] >= 0 
              && [string first ":" $author_string] < 0 } {
-            return "<a href=\"mailto:$author_string\">$author_string</a>"
+            return [subst {<a href="mailto:$author_string">$author_string</a>}]
         } elseif { [regexp {^([^\(\)]+)\s+\((.+)\)$} [string trim $author_string] {} name email] } {
             return "$name &lt;<a href=\"mailto:$email\">$email</a>&gt;"
         }
@@ -971,15 +987,15 @@ namespace eval ::apidoc {
         Given a proc name, formats it as HTML, including highlighting syntax in
         various colors and creating hyperlinks to other proc definitions.<BR>
         The inspiration for this proc was the tcl2html script created by Jeff Hobbs.
-        <P>
+        <p>
         Known Issues:
-        <OL>
-        <LI> This proc will mistakenly highlight switch strings that look like commands as commands, etc.
-        <LI> There are many undocumented AOLserver commands including all of the commands added by modules.
-        <LI> When a proc inside a string has explicitly quoted arguments, they are not formatted.
-        <LI> regexp and regsub are hard to parse properly.  E.g. If we use the start option, and we quote its argument,
+        <ol>
+        <li> This proc will mistakenly highlight switch strings that look like commands as commands, etc.
+        <li> There are many undocumented AOLserver commands including all of the commands added by modules.
+        <li> When a proc inside a string has explicitly quoted arguments, they are not formatted.
+        <li> regexp and regsub are hard to parse properly.  E.g. If we use the start option, and we quote its argument,
         and we have an ugly regexp, then this code might highlight it incorrectly.
-        </OL>
+        </ol>
 
         @author Jamie Rasmussen (jrasmuss@mle.ie)
 

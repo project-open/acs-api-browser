@@ -5,7 +5,7 @@ ad_page_contract {
 } {
     version_id:naturalnum,optional
     { public_p:boolean "" }
-    path:token,trim
+    path:path,trim
     source_p:boolean,optional,trim
 } -properties {
     title:onevalue
@@ -36,9 +36,9 @@ if {![file readable $::acs::rootdir/$path] || [file isdirectory $::acs::rootdir/
     if {[info exists version_id]} {
 	set kind procs
 	set href [export_vars -base [ad_conn package_url]/package-view {version_id {kind procs}}]
-	set link [subst {<p>Go back to <a href="[ns_quotehrml $href]">Package Documentation</a>.}]
+	set link [subst {<p>Go back to <a href="[ns_quotehtml $href]">Package Documentation</a>.}]
     } else {
-	set link [subst {<p>Go back to <a href="[ns_quotehrml [ad_conn package_url]]">API Browser</a>.}]
+	set link [subst {<p>Go back to <a href="[ns_quotehtml [ad_conn package_url]]">API Browser</a>.}]
     }
     ad_return_warning "No such library file" [subst {
 	The file '$path' was not found. Maybe the url contains a typo.
@@ -111,3 +111,9 @@ if { $source_p } {
    set file_contents [template::util::read_file $::acs::rootdir/$path]
    set file_contents [apidoc::tclcode_to_html $file_contents]
 }
+
+# Local variables:
+#    mode: tcl
+#    tcl-indent-level: 4
+#    indent-tabs-mode: nil
+# End:

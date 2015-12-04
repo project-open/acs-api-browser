@@ -3,7 +3,7 @@ ad_page_contract {
     
     @cvs-id $Id$
 } {
-    proc:token,trim
+    proc:nohtml,trim
     source_p:boolean,optional,trim
     {version_id:naturalnum,optional ""}
 } -properties {
@@ -71,7 +71,7 @@ if { !$documented_call } {
             a private interface.</p><p>The procedure is defined as:
 <pre class='code'>
 proc $proc {[info args $proc]} {
-    [ad_quotehtml [info body $proc]]
+    [ns_quotehtml [info body $proc]]
 }
 </pre></p>
         }]
@@ -127,6 +127,8 @@ proc $proc {[info args $proc]} {
         set documentation [api_proc_documentation -script $proc_index]
     }
 }
+set procViewToggleURL [export_vars -base proc-view [list proc [list source_p [expr {!$source_p}]] version_id]]
+set setDefaultURL [export_vars -base set-default [list source_p return_url]]
 
 #
 # Local variables:
