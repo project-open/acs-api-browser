@@ -1,11 +1,22 @@
+<if @show_master_p@>
 <master>
-<property name="doc(title)">@title;literal@</property>
-<property name="context">@context;literal@</property>
+<property name=title>@title;noquote@</property>
+<property name="context">@context;noquote@</property>
 <property name="head">
 <style type="text/css">
 td.wide {width:35%;}
 </style>
 </property>
+</if>
+
+<if "" ne @error_message@>
+<!-- <font color=red> -->
+@error_message@
+<!-- </font> -->
+</if>
+
+<if "" ne @version_id@>
+
 @dimensional_slider;noquote@
 
 <if @kind@ eq "procs_files">
@@ -66,4 +77,6 @@ td.wide {width:35%;}
   </tr>
   </multiple>
 </table>
+</if>
+
 </if>

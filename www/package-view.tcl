@@ -9,7 +9,7 @@ ad_page_contract {
     @creation-date 3 Jul 2000
     @cvs-id $Id$
 } {
-    version_id:naturalnum,notnull
+    { version_id "" }
     { public_p:boolean "" }
     { kind:word "procs_files" }
     { about_package_key:token ""}
@@ -25,6 +25,20 @@ ad_page_contract {
     sql_files:multirow
     content_pages:multirow
 }
+
+set error_message ""
+set dimensional_slider ""
+if {![info exists show_master_p]} { set show_master_p 1 }
+
+if {![info exists version_id] || "" == $version_id} {
+    if {[info exists package_key] && "" != $package_key} {
+        set version_id [db_string package_version "select min(version_id) from apm_package_versions where package_key = :package_key" -default ""]
+    }
+}
+
+if {"" == $version_id} { set error_message "Package '$package_key' is not installed on this server, so there is no documentation available." }
+if {"all" == $kind} { set kind "procs_files procs sql_files content" }
+set url "/api-doc"
 
 set public_p [::apidoc::set_public $version_id $public_p]
 
