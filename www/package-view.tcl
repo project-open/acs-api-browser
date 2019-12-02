@@ -1,29 +1,35 @@
-ad_page_contract {
-    Shows APIs for a particular package.
+if {![info exists package_key]} {
+    ad_page_contract {
+        Shows APIs for a particular package.
 
-    @param version_id the ID of the version whose API to view.
-    @param public_p view only public APIs?
-    @param kind view which type of APIs? One of <code>procs_files</code>,
+        @param version_id the ID of the version whose API to view.
+        @param public_p view only public APIs?
+        @param kind view which type of APIs? One of <code>procs_files</code>,
         <code>procs</code> or <code>content</code>.
-    @author Jon Salz (jsalz@mit.edu)
-    @creation-date 3 Jul 2000
-    @cvs-id $Id$
-} {
-    { version_id "" }
-    { public_p:boolean "" }
-    { kind:word "procs_files" }
-    { about_package_key:token ""}
-} -properties {
-    title:onevalue
-    context:onevalue
-    dimensional_slider:onevalue
-    kind:onevalue
-    version_id:onevalue
-    package_key:onevalue
-    procs_files:multirow
-    procedures:multirow
-    sql_files:multirow
-    content_pages:multirow
+        @author Jon Salz (jsalz@mit.edu)
+        @creation-date 3 Jul 2000
+        @cvs-id $Id$
+    } {
+        { version_id "" }
+        { public_p:boolean "" }
+        { kind:word "procs_files" }
+        { about_package_key:token ""}
+    } -properties {
+        title:onevalue
+        context:onevalue
+        dimensional_slider:onevalue
+        kind:onevalue
+        version_id:onevalue
+        package_key:onevalue
+        procs_files:multirow
+        procedures:multirow
+        sql_files:multirow
+        content_pages:multirow
+    }
+} else {
+    set kind "all"
+    set public_p ""
+    set about_package_key ""
 }
 
 set error_message ""
@@ -71,16 +77,26 @@ set dimensional_list {
         }
     }
 }
-
 set title "$pretty_name $version_name"
 set context [list $title]
+
+# One of the vars is not 
 set dimensional_slider "[ad_dimensional \
         $dimensional_list \
         "" \
-        [ad_tcl_vars_to_ns_set version_id kind public_p about_package_key]]"
+         [ad_tcl_vars_to_ns_set version_id kind public_p about_package_key]]"
 
-switch $kind {
+set procs_p 0
+set procs_files_p 0
+set sql_files_p 0
+set content_p 0
+set abs_path "http://www.project-open.net/api-doc/"
+
+
+foreach k $kind {
+switch $k {
     procs_files {
+        set procs_files_p 1
         array set procs [list]
 
         multirow create procs_files path full_path first_sentence view
@@ -91,7 +107,7 @@ switch $kind {
             if { [nsv_exists api_library_doc $full_path] } {
                 array set doc_elements [nsv_get api_library_doc $full_path]
                 set first_sentence [::apidoc::first_sentence [lindex $doc_elements(main) 0]]
-                set view procs-file-view
+                set view ${abs_path}procs-file-view
             } else {
                 array set doc_elements [api_read_script_documentation $full_path]
                 if { [info exists doc_elements(main)] } {
@@ -99,13 +115,14 @@ switch $kind {
                 } else {
                     set first_sentence ""
                 }
-                set view content-page-view
+                set view ${abs_path}content-page-view
             }
 
             multirow append procs_files $path $full_path $first_sentence $view
         }
     }
     procs {
+        set procs_p 1
         array set procs [list]
 
         foreach path [apm_get_package_files -package_key $package_key -file_types tcl_procs] {
@@ -129,6 +146,7 @@ switch $kind {
         }
     }
     sql_files {
+        set sql_files_p 1
         multirow create sql_files path relative_path
 
         set file_types [list data_model data_model_create data_model_drop data_model_upgrade]
@@ -141,6 +159,7 @@ switch $kind {
         }
     }
     content {
+        set content_p 1
         multirow create content_pages indentation full_path content_type name type first_sentence
         set last_components [list]
         foreach path [apm_get_package_files -package_key $package_key -file_types content_page] {
@@ -189,6 +208,7 @@ switch $kind {
             }
         }
     }
+}
 }
 
 # Local variables:
