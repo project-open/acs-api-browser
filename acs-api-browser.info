@@ -6,7 +6,7 @@
     <pretty-plural>ACS API Browsers</pretty-plural>
     <initial-install-p>t</initial-install-p>
     <singleton-p>t</singleton-p>
-    
+    <license>GPL V2.0 or any later version</license>    
     <version name="5.9.0" url="http://openacs.org/repository/download/apm/acs-api-browser-5.9.0.apm">
         <owner url="http://openacs.org">OpenACS</owner>
         <summary>Interactive documentation for the Tcl and SQL APIs.</summary>
