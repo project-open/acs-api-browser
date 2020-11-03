@@ -36,8 +36,9 @@ set default_source_p [ad_get_client_property -default 0 acs-api-browser api_doc_
 set return_url [export_vars -base [ad_conn url] {proc version_id}]
 set error_msg ""
 
-if { ![info exists source_p] } {
+if { ![info exists source_p] || $source_p eq ""} {
     set source_p $default_source_p
+    if {$source_p eq ""} {set source_p 0}
 }
 
 if {[string match ::* $proc]} {
@@ -75,33 +76,43 @@ proc $proc {[info args $proc]} {
 }
 </pre></p>
         }]
-    } elseif {[info commands $absolute_proc] eq $absolute_proc} { 
+    } elseif {[info commands $absolute_proc] eq $absolute_proc} {
 
-        set result [util_memoize [list ::util::http::get -url $::apidoc::ns_api_html_index]]
-        set page [dict get $result page]
-
-        set url [apidoc::search_on_webindex \
-                     -page $page \
-                     -root $::apidoc::ns_api_root \
-                     -host $::apidoc::ns_api_host \
-                     -proc $relative_proc]
-        
-        if {$url ne ""} {
-            ns_log notice "api-doc/www/proc-view got URL <$url>"
-            ad_returnredirect -allow_complete_url $url
+        #
+        # In case the cmd is an object, redirect to the object browser
+        #
+        if {[info commands ::nsf::is] ne "" && [nsf::is object $absolute_proc]} {
+            ad_returnredirect [export_vars -base /xotcl/show-object {{object $absolute_proc}}]
             ad_script_abort
         }
 
-        set result [util_memoize [list ::util::http::get -url $::apidoc::tcl_api_html_index]]
-        set page [dict get $result page]
+        #
+        # Try NaviSever API documentation
+        #
+        set url [apidoc::get_doc_url \
+             -cmd $relative_proc \
+             -index $::apidoc::ns_api_html_index \
+             -root $::apidoc::ns_api_root \
+             -host $::apidoc::ns_api_host]
 
-        # Strip the end of the Tcl-URL to obtain the root
-        regexp {^(.*)/[^/]+} $::apidoc::tcl_api_html_index _ root
-        append root /
+        if {$url eq ""} {
 
-        set url [apidoc::search_on_webindex -page $page -root $root -host $root -proc $proc]
-        
+            #
+            # Try Tcl command documentation
+            #
+
+            regexp {^(.*)/[^/]+} $::apidoc::tcl_api_html_index _ root
+            append root /
+
+            set url [apidoc::get_doc_url \
+                 -cmd $proc \
+                 -index $::apidoc::tcl_api_html_index \
+                 -root $root \
+                 -host $root]
+        }
+
         if {$url ne ""} {
+            ns_log notice "api-doc/www/proc-view got URL <$url>"
             ad_returnredirect -allow_complete_url $url
             ad_script_abort
         }
@@ -111,7 +122,7 @@ proc $proc {[info args $proc]} {
             <p>The command <b>$proc</b> is an available command on
             the server and might be found in the <a
             href="$::apidoc::tcl_api_html_index">Tcl</a>
-            or <a href="$::apidoc::ns_api_html_index">[ns_info name]</a>
+            or <a href="[lindex $::apidoc::ns_api_html_index 0]">[ns_info name]</a>
             documentation or in documentation for a loadable module.
             </p>
         }]
