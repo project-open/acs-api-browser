@@ -11,7 +11,7 @@ if {![info exists package_key]} {
         @cvs-id $Id$
     } {
         { version_id "" }
-        { public_p:boolean "" }
+        { public_p:boolean 0 }
         { kind:word "procs_files" }
         { about_package_key:token ""}
     } -properties {
@@ -28,7 +28,7 @@ if {![info exists package_key]} {
     }
 } else {
     set kind "all"
-    set public_p ""
+    set public_p 0
     set about_package_key ""
 }
 
@@ -47,6 +47,7 @@ if {"all" == $kind} { set kind "procs_files procs sql_files content" }
 set url "/api-doc"
 
 set public_p [::apidoc::set_public $version_id $public_p]
+
 
 db_0or1row pretty_name_from_package_id {
     select pretty_name, package_key, version_name
